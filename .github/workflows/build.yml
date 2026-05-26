@@ -1,13 +1,11 @@
 name: build-portmidi
+
 on:
   push:
-  workflow_dispatch:        # adds a manual "Run workflow" button
-
-permissions:
-  contents: write           # needed to publish a Release
+  workflow_dispatch:
 
 env:
-  PORTMIDI_TAG: v2.0.4      # pin to an upstream tag; bump when you want newer
+  PORTMIDI_TAG: v2.0.4   # check github.com/PortMidi/portmidi/tags and edit if needed
 
 jobs:
   build:
@@ -16,6 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Get PortMidi source
         run: git clone --depth 1 --branch ${{ env.PORTMIDI_TAG }} https://github.com/PortMidi/portmidi src
@@ -34,7 +33,7 @@ jobs:
         shell: bash
         run: |
           mkdir out
-          find build -name "*.so*" -o -name "*.dll" | xargs -I{} cp {} out/ || true
+          find build \( -name "*.so*" -o -name "*.dll" \) -exec cp {} out/ \;
           ls -la out
 
       - name: Upload artifact
@@ -42,18 +41,3 @@ jobs:
         with:
           name: portmidi-${{ matrix.os }}
           path: out/*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: portmidi-${{ github.run_number }}
-          files: dist/**/*
