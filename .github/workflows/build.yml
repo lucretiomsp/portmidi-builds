@@ -1,0 +1,59 @@
+name: build-portmidi
+on:
+  push:
+  workflow_dispatch:        # adds a manual "Run workflow" button
+
+permissions:
+  contents: write           # needed to publish a Release
+
+env:
+  PORTMIDI_TAG: v2.0.4      # pin to an upstream tag; bump when you want newer
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Get PortMidi source
+        run: git clone --depth 1 --branch ${{ env.PORTMIDI_TAG }} https://github.com/PortMidi/portmidi src
+
+      - name: Linux deps (ALSA)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Configure
+        run: cmake -S src -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Collect binaries
+        shell: bash
+        run: |
+          mkdir out
+          find build -name "*.so*" -o -name "*.dll" | xargs -I{} cp {} out/ || true
+          ls -la out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portmidi-${{ matrix.os }}
+          path: out/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: portmidi-${{ github.run_number }}
+          files: dist/**/*
